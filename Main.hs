@@ -29,7 +29,7 @@ instance Monoid ConfigInfo where
 
 printSummary :: ConfigInfo -> IO ()
 printSummary (ConfigInfo ns ss os) = do
-  prettyPrint "PACNEW "  ns
+  prettyPrint "PACNEW " ns
   prettyPrint "PACSAVE" ss
   prettyPrint "PACORIG" os
   where
@@ -49,11 +49,10 @@ main = do
       permNew <- getPermissions new
       permOrg <- getPermissions org
       if   writable permOrg && readable permNew
-      then do (c,o,e) <- readProcessWithExitCode "gvimdiff" [org,new] ""
-              case c of
-                ExitSuccess     -> do ar <- ask $ "remove file " ++ new
-                                      when ar $ removeFile new
-                (ExitFailure _) -> putStrLn e
+      then do ec <- rawSystem "vimdiff" [org,new]
+              when (isExitSuccess ec) $ do
+                ar <- ask $ "remove file " ++ new
+                when ar $ removeFile new
       else putStrLn $ "insufficient permissions: " ++ org ++ "/" ++ new
   where
     ask msg = do
@@ -64,8 +63,10 @@ main = do
         'y' -> return True
         'n' -> return False
         _   -> ask msg
+    isExitSuccess ExitSuccess     = True
+    isExitSuccess (ExitFailure _) = False
     printError :: SomeException -> IO ()
-    printError = putStrLn . show
+    printError = print
 
 partitionM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m ([a],[a])
 partitionM p = foldM (\xs x -> select xs x <$> p x) ([],[])
